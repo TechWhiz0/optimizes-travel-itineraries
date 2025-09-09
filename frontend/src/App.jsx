@@ -21,7 +21,7 @@ function App() {
   const [places, setPlaces] = useState([]);
   const [error, setError] = useState(null);
   // Get API URL with fallback
-  const apiUrl = import.meta.env.VITE_API_KEY || "http://localhost:5000";
+  const apiUrl = "https://optimizes-travel-itineraries.onrender.com";
   console.log("API URL:", apiUrl);
 
   useEffect(() => {
