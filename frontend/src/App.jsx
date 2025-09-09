@@ -28,7 +28,9 @@ function App() {
 
   const fetchPlaces = async () => {
     try {
-      const response = await fetch("http://localhost:5000/api/places");
+      const response = await fetch(
+        `${import.meta.env.VITE_API_URL}/api/places`
+      );
       const data = await response.json();
       console.log(data, "data from places");
       setPlaces(data);
@@ -40,7 +42,9 @@ function App() {
   const fetchNominatimPlaces = async (query) => {
     try {
       const response = await fetch(
-        `http://localhost:5000/api/nominatim-places?query=${query}&city=Bangalore&limit=100`
+        `${
+          import.meta.env.VITE_API_URL
+        }/api/nominatim-places?query=${query}&city=Bangalore&limit=100`
       );
       const data = await response.json();
       console.log(data, "data from nominatim places");
@@ -69,7 +73,7 @@ function App() {
       };
 
       const response = await fetch(
-        "http://localhost:5000/api/generate-itinerary",
+        `${import.meta.env.VITE_API_URL}/api/generate-itinerary`,
         {
           method: "POST",
           headers: {
