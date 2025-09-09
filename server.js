@@ -309,8 +309,28 @@ app.get("/api/nominatim-places", async (req, res) => {
     const response = await fetch(
       `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(
         query + " " + city
-      )}&format=json&limit=${limit}&addressdetails=1&extratags=1`
+      )}&format=json&limit=${limit}&addressdetails=1&extratags=1`,
+      {
+        headers: {
+          "User-Agent": "SmartItineraryPlanner/1.0 (contact@example.com)",
+        },
+      }
     );
+
+    // Check if response is OK
+    if (!response.ok) {
+      console.error(
+        "Nominatim API error:",
+        response.status,
+        response.statusText
+      );
+      const errorText = await response.text();
+      console.error("Error response:", errorText);
+      return res.status(500).json({
+        message: `Nominatim API error: ${response.status} - ${response.statusText}`,
+        details: errorText.substring(0, 200),
+      });
+    }
 
     const data = await response.json();
 
