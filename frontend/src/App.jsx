@@ -20,8 +20,9 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [places, setPlaces] = useState([]);
   const [error, setError] = useState(null);
-  const apiurl=import.meta.env.VITE_API_URL;
-  console.log(apiurl, "API URL");
+  // Get API URL with fallback
+  const apiUrl = import.meta.env.VITE_API_KEY || "http://localhost:5000";
+  console.log("API URL:", apiUrl);
 
   useEffect(() => {
     // Don't load default places initially - start with empty state
@@ -30,9 +31,7 @@ function App() {
 
   const fetchPlaces = async () => {
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/places`
-      );
+      const response = await fetch(`${apiUrl}/api/places`);
       const data = await response.json();
       console.log(data, "data from places");
       setPlaces(data);
@@ -43,16 +42,24 @@ function App() {
 
   const fetchNominatimPlaces = async (query) => {
     try {
-      const response = await fetch(
-        `${
-          import.meta.env.VITE_API_URL
-        }/api/nominatim-places?query=${query}&city=Bangalore&limit=100`
+      console.log(
+        "Fetching from URL:",
+        `${apiUrl}/api/nominatim-places?query=${query}&city=Bangalore&limit=100`
       );
+      const response = await fetch(
+        `${apiUrl}/api/nominatim-places?query=${query}&city=Bangalore&limit=100`
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
       console.log(data, "data from nominatim places");
       setPlaces(data);
     } catch (err) {
       console.error("Error fetching nominatim places:", err);
+      setError(`Failed to fetch places: ${err.message}`);
     }
   };
 
@@ -74,16 +81,13 @@ function App() {
         ),
       };
 
-      const response = await fetch(
-        `${import.meta.env.VITE_API_URL}/api/generate-itinerary`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(requestData),
-        }
-      );
+      const response = await fetch(`${apiUrl}/api/generate-itinerary`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestData),
+      });
 
       const data = await response.json();
       console.log(data, "data from itinerary");
