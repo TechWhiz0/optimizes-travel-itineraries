@@ -466,15 +466,32 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "OK", message: "Smart Itinerary Planner API is running" });
 });
 
-// Serve static assets in production
+// Serve static assets in production (only if frontend build exists)
 if (process.env.NODE_ENV === "production") {
-  app.use(express.static("client/build"));
-  app.get("*", (req, res) => {
-    res.sendFile(path.resolve(__dirname, "client", "build", "index.html"));
-  });
+  const buildPath = path.join(__dirname, "client", "build");
+  if (fs.existsSync(buildPath)) {
+    app.use(express.static(buildPath));
+    app.get("*", (req, res) => {
+      res.sendFile(path.resolve(buildPath, "index.html"));
+    });
+  } else {
+    // If no frontend build exists, just serve API endpoints
+    app.get("/", (req, res) => {
+      res.json({
+        message: "Smart Itinerary Planner API",
+        status: "running",
+        endpoints: [
+          "GET /api/health",
+          "GET /api/places",
+          "GET /api/nominatim-places",
+          "POST /api/generate-itinerary",
+        ],
+      });
+    });
+  }
 }
 
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
