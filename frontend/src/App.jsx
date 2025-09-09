@@ -20,6 +20,8 @@ function App() {
   const [loading, setLoading] = useState(false);
   const [places, setPlaces] = useState([]);
   const [error, setError] = useState(null);
+  const apiurl=import.meta.env.VITE_API_URL;
+  console.log(apiurl, "API URL");
 
   useEffect(() => {
     // Don't load default places initially - start with empty state
