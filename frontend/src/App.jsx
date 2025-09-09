@@ -25,9 +25,40 @@ function App() {
   console.log("API URL:", apiUrl);
 
   useEffect(() => {
-    // Don't load default places initially - start with empty state
-    // fetchPlaces();
+    // Test backend health on app start
+    testBackendHealth();
   }, []);
+
+  const testBackendHealth = async () => {
+    try {
+      console.log("Testing backend health...");
+      const response = await fetch(`${apiUrl}/api/health`);
+
+      console.log("Response status:", response.status);
+      console.log("Response headers:", response.headers);
+
+      // Get the response text first to see what we're actually getting
+      const responseText = await response.text();
+      console.log("Raw response:", responseText);
+
+      // Try to parse as JSON
+      try {
+        const data = JSON.parse(responseText);
+        console.log("Backend health check:", data);
+      } catch (parseError) {
+        console.error("Failed to parse JSON:", parseError);
+        console.error("Response was:", responseText.substring(0, 500));
+        setError(
+          `Backend returned invalid JSON: ${responseText.substring(0, 100)}...`
+        );
+      }
+    } catch (err) {
+      console.error("Backend health check failed:", err);
+      setError(
+        "Backend server is not responding. Please check if the server is running."
+      );
+    }
+  };
 
   const fetchPlaces = async () => {
     try {
@@ -50,8 +81,18 @@ function App() {
         `${apiUrl}/api/nominatim-places?query=${query}&city=Bangalore&limit=100`
       );
 
+      console.log("Response status:", response.status);
+      console.log("Response headers:", response.headers);
+
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        // Try to get the response text to see what error we're getting
+        const errorText = await response.text();
+        console.error("Error response:", errorText);
+        throw new Error(
+          `HTTP error! status: ${
+            response.status
+          }, message: ${errorText.substring(0, 200)}`
+        );
       }
 
       const data = await response.json();
