@@ -2,6 +2,11 @@ import { MapPin, Clock, Users, ArrowRight, AlertCircle } from "lucide-react";
 import React from "react";
 const ItineraryResults = ({ itinerary }) => {
   const formatHour = (hour) => {
+    // Handle invalid or undefined hours
+    if (hour === null || hour === undefined || isNaN(hour)) {
+      return "12 PM"; // Default fallback
+    }
+
     // Handle decimal hours by rounding to nearest 0.1
     const roundedHour = Math.round(hour * 10) / 10;
 
@@ -52,7 +57,7 @@ const ItineraryResults = ({ itinerary }) => {
 
         <div className="space-y-4">
           {itinerary.itinerary.map((step, index) => (
-            <div key={index} className="relative">
+            <div key={`itinerary-step-${step.place}-${index}`} className="relative">
               {/* Connection Line */}
               {index > 0 && (
                 <div className="absolute left-6 top-0 w-0.5 h-8 bg-gray-200 transform -translate-y-4"></div>
@@ -135,7 +140,7 @@ const ItineraryResults = ({ itinerary }) => {
               </p>
               <div className="flex flex-wrap gap-2">
                 {itinerary.skippedPlaces.map((place, index) => (
-                  <span key={index} className="badge badge-warning">
+                  <span key={`skipped-${place}-${index}`} className="badge badge-warning">
                     {place}
                   </span>
                 ))}

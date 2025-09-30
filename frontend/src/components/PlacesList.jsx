@@ -3,15 +3,18 @@ import React, { useState } from "react";
 const PlacesList = ({ places, onSearchPlaces, onPlaceSelect }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("all");
+  const [hasSearched, setHasSearched] = useState(false);
   const handleSearch = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
+      setHasSearched(true);
       onSearchPlaces(searchQuery.trim());
     }
   };
 
   const handleCategoryFilter = (category) => {
     setSelectedCategory(category);
+    setHasSearched(true);
     if (category === "all") {
       onSearchPlaces("restaurant"); // Default search
     } else {
@@ -68,23 +71,73 @@ const PlacesList = ({ places, onSearchPlaces, onPlaceSelect }) => {
     return `${time - 12} PM`;
   };
 
-  if (!places || places.length === 0) {
+  // Always show search interface - no need to click category first
+  if (!hasSearched && (!places || places.length === 0)) {
     return (
-      <div className="text-center py-12">
-        <div className="w-16 h-16 bg-gradient-to-r from-primary-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <Search className="w-8 h-8 text-primary-600" />
+      <div className="space-y-4">
+        {/* Search Bar - Always visible */}
+        <form onSubmit={handleSearch} className="space-y-4">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder="🔍 Search for restaurants, malls, parks, attractions..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-12 pr-4 py-3 border-2 border-gray-200 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-all duration-200 text-gray-700 placeholder-gray-400"
+            />
+          </div>
+          <button
+            type="submit"
+            className="w-full bg-gradient-to-r from-primary-600 to-purple-600 text-white py-3 px-4 rounded-xl hover:from-primary-700 hover:to-purple-700 transition-all duration-200 flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+          >
+            <Search className="w-5 h-5" />
+            <span className="font-medium">Search Places</span>
+          </button>
+        </form>
+
+        {/* Category Filters */}
+        <div className="space-y-3">
+          <div className="flex items-center space-x-2">
+            <Filter className="w-5 h-5 text-primary-600" />
+            <span className="text-sm font-semibold text-gray-800">
+              Or filter by category:
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[
+              "all",
+              "restaurant",
+              "mall",
+              "garden",
+              "attraction",
+              "entertainment",
+              "stadium",
+              "palace",
+            ].map((category) => (
+              <button
+                key={category}
+                onClick={() => handleCategoryFilter(category)}
+                className={`px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 transform hover:scale-105 ${
+                  selectedCategory === category
+                    ? "bg-gradient-to-r from-primary-600 to-purple-600 text-white shadow-lg"
+                    : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-200 hover:border-primary-300"
+                }`}
+              >
+                {category === "all"
+                  ? "🌟 All"
+                  : category.charAt(0).toUpperCase() + category.slice(1)}
+              </button>
+            ))}
+          </div>
         </div>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2">
-          🔍 Discover Amazing Places
-        </h3>
-        <p className="text-gray-500 text-sm mb-4">
-          Search for restaurants, malls, parks, attractions, and more!
-        </p>
+
+        {/* Quick Search Suggestions */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <p className="text-blue-800 text-sm font-medium mb-2">
             💡 Try searching for:
           </p>
-          <div className="flex flex-wrap gap-2 justify-center">
+          <div className="flex flex-wrap gap-2">
             {[
               "restaurant",
               "mall",
@@ -96,7 +149,11 @@ const PlacesList = ({ places, onSearchPlaces, onPlaceSelect }) => {
               <span
                 key={term}
                 className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs cursor-pointer hover:bg-blue-200 transition-colors"
-                onClick={() => onSearchPlaces(term)}
+                onClick={() => {
+                  setSearchQuery(term);
+                  setHasSearched(true);
+                  onSearchPlaces(term);
+                }}
               >
                 {term}
               </span>
@@ -115,7 +172,7 @@ const PlacesList = ({ places, onSearchPlaces, onPlaceSelect }) => {
 
   return (
     <div className="space-y-4">
-      {/* Search Bar */}
+      {/* Search Bar - Always show after user interaction */}
       <form onSubmit={handleSearch} className="space-y-4">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -174,9 +231,22 @@ const PlacesList = ({ places, onSearchPlaces, onPlaceSelect }) => {
 
       {/* Places List */}
       <div className="space-y-3 max-h-96 overflow-y-auto">
-        {filteredPlaces.map((place, index) => (
+        {filteredPlaces.length === 0 && hasSearched ? (
+          <div className="text-center py-8">
+            <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <Search className="w-6 h-6 text-gray-400" />
+            </div>
+            <p className="text-gray-500 text-sm">
+              No places found for "{selectedCategory === "all" ? searchQuery : selectedCategory}"
+            </p>
+            <p className="text-gray-400 text-xs mt-1">
+              Try a different search term or category
+            </p>
+          </div>
+        ) : (
+          filteredPlaces.map((place, index) => (
           <div
-            key={index}
+            key={`places-${place.name || place.place_id}-${index}-${place.place_id || 'local'}`}
             className="flex items-center space-x-4 p-4 bg-white rounded-xl hover:bg-gray-50 transition-all duration-200 cursor-pointer border border-gray-100 hover:border-primary-200 hover:shadow-md transform hover:-translate-y-1"
             onClick={() => onPlaceSelect && onPlaceSelect(place)}
           >
@@ -223,7 +293,8 @@ const PlacesList = ({ places, onSearchPlaces, onPlaceSelect }) => {
               </p>
             </div>
           </div>
-        ))}
+        ))
+        )}
       </div>
 
       {/* Summary */}

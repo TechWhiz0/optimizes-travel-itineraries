@@ -10,94 +10,62 @@ import {
   TrendingUp,
   Zap,
 } from "lucide-react";
-import ItineraryForm from "./components/ItineraryForm";
 import ItineraryResults from "./components/ItineraryResults";
-import PlacesList from "./components/PlacesList";
 import StatsCard from "./components/StatsCard";
+import Sidebar from "./components/Sidebar";
+import FirebaseTroubleshooting from "./components/FirebaseTroubleshooting";
+import { suggestItinerary, searchNominatimPlaces, loadPlacesFromFirebase, searchPlacesInFirebase } from "./services/dataService";
 
 function App() {
   const [itinerary, setItinerary] = useState(null);
   const [loading, setLoading] = useState(false);
   const [places, setPlaces] = useState([]);
   const [error, setError] = useState(null);
-  // Get API URL with fallback
-  const apiUrl = "https://optimizes-travel-itineraries.onrender.com";
-  console.log("API URL:", apiUrl);
+  const [firebaseBlocked, setFirebaseBlocked] = useState(false);
 
   useEffect(() => {
-    // Test backend health on app start
-    testBackendHealth();
+    // Load initial places data
+    loadInitialPlaces();
   }, []);
 
-  const testBackendHealth = async () => {
+  const loadInitialPlaces = async () => {
     try {
-      console.log("Testing backend health...");
-      const response = await fetch(`${apiUrl}/api/health`);
-
-      console.log("Response status:", response.status);
-      console.log("Response headers:", response.headers);
-
-      // Get the response text first to see what we're actually getting
-      const responseText = await response.text();
-      console.log("Raw response:", responseText);
-
-      // Try to parse as JSON
-      try {
-        const data = JSON.parse(responseText);
-        console.log("Backend health check:", data);
-      } catch (parseError) {
-        console.error("Failed to parse JSON:", parseError);
-        console.error("Response was:", responseText.substring(0, 500));
-        setError(
-          `Backend returned invalid JSON: ${responseText.substring(0, 100)}...`
-        );
+      setError(null);
+      setFirebaseBlocked(false);
+      
+      // Load places from Firebase
+      const firebasePlaces = await loadPlacesFromFirebase();
+      setPlaces(firebasePlaces);
+      console.log("Loaded initial places from Firebase:", firebasePlaces.length);
+    } catch (error) {
+      console.error("Error loading initial places:", error);
+      
+      // Check if it's a Firebase blocking error
+      if (error.message.includes('ERR_BLOCKED_BY_CLIENT') || 
+          error.message.includes('FIREBASE_BLOCKED')) {
+        setFirebaseBlocked(true);
+        setError("Firebase connection blocked by browser extension. Please disable ad blockers for this site or use incognito mode.");
+      } else {
+        setError("Failed to load places data from Firebase");
       }
-    } catch (err) {
-      console.error("Backend health check failed:", err);
-      setError(
-        "Backend server is not responding. Please check if the server is running."
-      );
     }
   };
 
-  const fetchPlaces = async () => {
-    try {
-      const response = await fetch(`${apiUrl}/api/places`);
-      const data = await response.json();
-      console.log(data, "data from places");
-      setPlaces(data);
-    } catch (err) {
-      console.error("Error fetching places:", err);
-    }
+  const retryFirebaseConnection = () => {
+    loadInitialPlaces();
   };
 
   const fetchNominatimPlaces = async (query) => {
     try {
-      console.log(
-        "Fetching from URL:",
-        `${apiUrl}/api/nominatim-places?query=${query}&city=Bangalore&limit=100`
-      );
-      const response = await fetch(
-        `${apiUrl}/api/nominatim-places?query=${query}&city=Bangalore&limit=100`
-      );
-
-      console.log("Response status:", response.status);
-      console.log("Response headers:", response.headers);
-
-      if (!response.ok) {
-        // Try to get the response text to see what error we're getting
-        const errorText = await response.text();
-        console.error("Error response:", errorText);
-        throw new Error(
-          `HTTP error! status: ${
-            response.status
-          }, message: ${errorText.substring(0, 200)}`
-        );
-      }
-
-      const data = await response.json();
-      console.log(data, "data from nominatim places");
-      setPlaces(data);
+      console.log("Searching for places:", query);
+      const searchResults = await searchNominatimPlaces(query, "Bangalore", 50);
+      console.log("Found places:", searchResults.length);
+      
+      // Merge with existing places, avoiding duplicates
+      const existingNames = new Set(places.map(p => p.name));
+      const newPlaces = searchResults.filter(p => !existingNames.has(p.name));
+      
+      setPlaces(prevPlaces => [...prevPlaces, ...newPlaces]);
     } catch (err) {
       console.error("Error fetching nominatim places:", err);
       setError(`Failed to fetch places: ${err.message}`);
@@ -105,7 +73,7 @@ function App() {
   };
 
   const handlePlaceSelect = (place) => {
-    // This will be handled by the ItineraryForm component
+    // This will be handled by the Sidebar component
     console.log("Place selected:", place);
   };
 
@@ -114,31 +82,63 @@ function App() {
     setError(null);
 
     try {
-      // Include Nominatim places in the request
-      const requestData = {
-        ...formData,
-        nominatimPlaces: places.filter(
-          (place) => place.place_id || place.coordinates // Nominatim places have these properties
-        ),
-      };
-
-      const response = await fetch(`${apiUrl}/api/generate-itinerary`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(requestData),
-      });
-
-      const data = await response.json();
-      console.log(data, "data from itinerary");
-
-      if (!response.ok) {
-        throw new Error(data.message || "Failed to generate itinerary");
+      console.log("Generating itinerary with data:", formData);
+      
+      // Get selected places from the form data
+      const selectedPlaceNames = formData.selectedPlaces || [];
+      
+      if (selectedPlaceNames.length === 0) {
+        throw new Error("Please select at least one place");
       }
 
-      setItinerary(data);
+      // Find the actual place objects for selected places
+      const selectedPlaces = places.filter(place => 
+        selectedPlaceNames.includes(place.name)
+      );
+
+      console.log("Selected places for itinerary:", selectedPlaces.map(p => p.name));
+
+      if (selectedPlaces.length === 0) {
+        throw new Error("No valid places found for selected items");
+      }
+
+      // Generate itinerary using client-side algorithm
+      const result = suggestItinerary(
+        selectedPlaces,
+        formData.day,
+        formData.startHour,
+        formData.stayDuration
+      );
+
+      // Calculate summary statistics
+      const totalPlaces = selectedPlaces.length;
+      const visitedPlaces = result.itinerary.length;
+      const averageFootfall = result.itinerary.length > 0 
+        ? Math.round(result.itinerary.reduce((sum, item) => sum + item.footfallAtArrival, 0) / result.itinerary.length)
+        : 0;
+      
+      // Calculate total travel time (simplified)
+      const totalTravelTime = result.itinerary.length > 1 
+        ? (result.itinerary.length - 1) * 30 // Assume 30 minutes between places
+        : 0;
+
+      const itineraryWithSummary = {
+        ...result,
+        summary: {
+          totalPlaces,
+          visitedPlaces,
+          averageFootfall,
+          totalTravelTime,
+          startHour: formData.startHour,
+          day: formData.day,
+          efficiencyScore: Math.round((visitedPlaces / totalPlaces) * 100)
+        }
+      };
+
+      console.log("Generated itinerary:", itineraryWithSummary);
+      setItinerary(itineraryWithSummary);
     } catch (err) {
+      console.error("Error generating itinerary:", err);
       setError(err.message);
     } finally {
       setLoading(false);
@@ -169,50 +169,34 @@ function App() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Form and Places */}
-          <div className="lg:col-span-1 space-y-6">
-            {/* Itinerary Form */}
-            <div className="card">
-              <div className="flex items-center space-x-2 mb-4">
-                <Calendar className="w-5 h-5 text-primary-600" />
-                <h2 className="text-lg font-semibold text-gray-900">
-                  Plan Your Trip
-                </h2>
-              </div>
-              <ItineraryForm
+      <main className="flex flex-col lg:flex-row min-h-screen">
+        {/* Sidebar */}
+        <div className="w-full lg:w-80 xl:w-96 flex-shrink-0 bg-white border-r border-gray-200 lg:h-screen">
+          <Sidebar
                 onSubmit={generateItinerary}
                 loading={loading}
                 availablePlaces={places}
-              />
-            </div>
-
-            {/* Available Places */}
-            <div className="card">
-              <div className="flex items-center space-x-2 mb-4">
-                <MapPin className="w-5 h-5 text-primary-600" />
-                <h2 className="text-lg font-semibold text-gray-900">
-                  Available Places
-                </h2>
-              </div>
-              <PlacesList
-                places={places}
                 onSearchPlaces={fetchNominatimPlaces}
                 onPlaceSelect={handlePlaceSelect}
               />
-            </div>
           </div>
 
-          {/* Right Column - Results */}
-          <div className="lg:col-span-2 space-y-6">
+        {/* Main Content Area */}
+        <div className="flex-1 min-h-screen overflow-y-auto bg-gray-50">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-6 space-y-4 lg:space-y-6">
             {error && (
-              <div className="card border-red-200 bg-red-50">
-                <div className="flex items-center space-x-2 text-red-800">
-                  <span className="text-sm font-medium">Error:</span>
-                  <span className="text-sm">{error}</span>
-                </div>
-              </div>
+              <>
+                {firebaseBlocked ? (
+                  <FirebaseTroubleshooting onRetry={retryFirebaseConnection} />
+                ) : (
+                  <div className="card border-red-200 bg-red-50">
+                    <div className="flex items-center space-x-2 text-red-800">
+                      <span className="text-sm font-medium">Error:</span>
+                      <span className="text-sm">{error}</span>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             {loading && (
@@ -252,11 +236,7 @@ function App() {
                   />
                   <StatsCard
                     title="Efficiency Score"
-                    value={`${Math.round(
-                      (itinerary.summary.visitedPlaces /
-                        itinerary.summary.totalPlaces) *
-                        100
-                    )}%`}
+                    value={`${itinerary.summary.efficiencyScore}%`}
                     icon={TrendingUp}
                     color="orange"
                   />
@@ -278,7 +258,7 @@ function App() {
                     🚀 Start Your Smart Journey
                   </h3>
                   <p className="text-gray-600 mb-8 max-w-lg mx-auto text-lg">
-                    Search for places above, select your favorites, and watch
+                    Use the sidebar to search for places, select your favorites, and watch
                     our AI create the perfect itinerary for you!
                   </p>
 
@@ -295,7 +275,7 @@ function App() {
                           </span>
                         </div>
                         <span className="text-gray-700">
-                          Search for places (restaurant, mall, park...)
+                          Use the sidebar to search for places (restaurant, mall, park...)
                         </span>
                       </div>
                       <div className="flex items-center space-x-3">
@@ -305,7 +285,7 @@ function App() {
                           </span>
                         </div>
                         <span className="text-gray-700">
-                          Select your favorite places
+                          Select your favorite places in the sidebar
                         </span>
                       </div>
                       <div className="flex items-center space-x-3">
@@ -341,18 +321,6 @@ function App() {
           </div>
         </div>
       </main>
-
-      {/* Footer */}
-      <footer className="bg-white border-t border-gray-200 mt-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-          <div className="text-center text-sm text-gray-500">
-            <p>
-              Smart Itinerary Planner - Optimize your travel experience with
-              AI-powered route planning
-            </p>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

@@ -143,9 +143,9 @@ const ItineraryForm = ({ onSubmit, loading, availablePlaces = [] }) => {
         </div>
         <div className="space-y-2 max-h-32 overflow-y-auto">
           {availablePlaces.length > 0 ? (
-            availablePlaces.slice(0, 20).map((place) => (
+            availablePlaces.slice(0, 20).map((place, index) => (
               <label
-                key={place.name || place.place_id}
+                key={`form-${place.name || place.place_id}-${index}-${place.place_id || 'local'}`}
                 className="flex items-center space-x-2 cursor-pointer p-2 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 <input
@@ -212,7 +212,7 @@ const ItineraryForm = ({ onSubmit, loading, availablePlaces = [] }) => {
             <div className="flex flex-wrap gap-2">
               {formData.selectedPlaces.map((placeName, index) => (
                 <span
-                  key={index}
+                  key={`form-selected-${placeName}-${index}`}
                   className="inline-flex items-center px-3 py-1 rounded-full text-xs bg-white text-primary-800 border border-primary-200 shadow-sm"
                 >
                   {placeName}
